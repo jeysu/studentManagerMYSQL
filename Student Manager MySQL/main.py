@@ -46,6 +46,7 @@ class mainWindow(QMainWindow):
         self.read()
 
     def fetchStudents(self):
+        # Fetch students from database
         try:
             connection = mysql.connector.connect(host='localhost',
                                                  database='database',
@@ -64,6 +65,7 @@ class mainWindow(QMainWindow):
                 connection.close()
 
     def fetchCourses(self):
+        # Fetch courses from database
         try:
             connection = mysql.connector.connect(host='localhost',
                                                  database='database',
@@ -81,21 +83,28 @@ class mainWindow(QMainWindow):
                 cursor.close()
                 connection.close()
 
-    def saveDataframe(self, dataframe, table_name):
+    def saveDataframe(self, dataframe, students):
         try:
             connection = mysql.connector.connect(host='localhost',
                                                  database='database',
                                                  user='root',
                                                  password='password')
             cursor = connection.cursor()
+            # Set foreign key off before altering values in table
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+
+            cursor.execute(f"DELETE FROM {students};")
             for index, row in dataframe.iterrows():
                 values = ', '.join(['%s'] * len(row))
-                sql = f"INSERT INTO {table_name} VALUES ({values})"
+                sql = (f"INSERT INTO {students} VALUES ({values})")
                 cursor.execute(sql, tuple(row.values))
+
+            # Set the foreign key on after altering values in table
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
             connection.commit()
-            print(f"{table_name} saved successfully.")
+            print(f"{students} saved successfully.")
         except Error as e:
-            print(f"Error saving {table_name}: {e}")
+            print(f"Error saving {students}: {e}")
         finally:
             if (connection.is_connected()):
                 cursor.close()
@@ -109,11 +118,11 @@ class mainWindow(QMainWindow):
         self.courseWindow.communicate.updateCourseDataframe.connect(self.updateCourseDataframeSlot)
 
     def read(self):
-        # Clear the QTableWidget
+        # Clear QTableWidget textOutput
         self.textOutput.setRowCount(0)
         self.textOutput.setColumnCount(len(self.dataframe.columns))
 
-        # Populate the QTableWidget with the DataFrame data
+        # Populate QTableWidget with data
         for index, row in self.dataframe.iterrows():
             row_position = self.textOutput.rowCount()
             self.textOutput.insertRow(row_position)
@@ -164,6 +173,7 @@ class addWindow(QMainWindow):
         #Load Add Window UI
         super(addWindow, self).__init__()
         uic.loadUi("addWindow.ui", self)
+
         #Adds the course codes from the course dataframe to the drop down combo box
         for index, row in course_dataframe.iterrows():
             value = row['course_code']
@@ -176,6 +186,7 @@ class addWindow(QMainWindow):
         #Store dataframes to local class
         self.dataframe = dataframe
         self.course_dataframe = course_dataframe
+
         #Communicate object
         self.communicate = Communicate()
 
@@ -252,6 +263,7 @@ class editWindow(QMainWindow):
         #Initialize Student Window UI
         super(editWindow, self).__init__()
         uic.loadUi("editWindow.ui", self)
+
         # Adds the course codes from the course dataframe to the drop down combo box
         for index, row in course_dataframe.iterrows():
             value = row['course_code']
@@ -265,8 +277,10 @@ class editWindow(QMainWindow):
         #Store dataframe to local class
         self.dataframe = dataframe
         self.course_dataframe = course_dataframe
+
         #Communicate object
         self.communicate = Communicate()
+
         #Initialize row index for function use
         self.row_index = None
 
@@ -309,7 +323,7 @@ class editWindow(QMainWindow):
             # Logic to edit the values of a given student
             name = self.nameInput.text()
             course = self.courseInput.currentText()
-            year = int(self.yearInput.currentText())  # Ensure year is converted to integer
+            year = int(self.yearInput.currentText())
             sex = self.sexInput.currentText()
             if course == "No Course":
                 status = "No"
@@ -359,11 +373,17 @@ class courseWindow(QMainWindow):
                                                  user='root',
                                                  password='password')
             cursor = connection.cursor()
+            #Set foreign key off before altering values in table
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 0;")
+
             cursor.execute(f"DELETE FROM {table_name};")
             for index, row in course_dataframe.iterrows():
                 values = ', '.join(['%s'] * len(row))
                 sql = (f"INSERT INTO {table_name} VALUES ({values})")
                 cursor.execute(sql, tuple(row.values))
+
+            #Set the foreign key on after altering values in table
+            cursor.execute("SET FOREIGN_KEY_CHECKS = 1;")
             connection.commit()
             print(f"{table_name} saved successfully.")
         except Error as e:
@@ -373,15 +393,12 @@ class courseWindow(QMainWindow):
                 cursor.close()
                 connection.close()
 
-    from PyQt5.QtWidgets import QTableWidgetItem, QHeaderView
-
     def read(self):
-        # Assuming 'dataframe' is your DataFrame variable
-        # Clear the QTableWidget
+        # Clears the QTableWidget
         self.textOutput.setRowCount(0)
         self.textOutput.setColumnCount(len(self.course_dataframe.columns))
 
-        # Populate the QTableWidget with the DataFrame data
+        # Populates QTableWidget with data
         for index, row in self.course_dataframe.iterrows():
             row_position = self.textOutput.rowCount()
             self.textOutput.insertRow(row_position)
@@ -392,8 +409,6 @@ class courseWindow(QMainWindow):
 
         # Adjust column widths to content
         self.textOutput.resizeColumnsToContents()
-
-        # Optionally, adjust column widths to fill the QTableWidget
         self.textOutput.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 
     def addClicked(self):
@@ -437,13 +452,13 @@ class courseWindow(QMainWindow):
         self.communicate.updateDataframe.emit(self.dataframe)
 
     def handleCourseDeletion(self, deleted_course_code):
-        # Find the row in the dataframe where the course code matches the deleted one
+        # Iterate over all rows in the dataframe
         for index, row in self.dataframe.iterrows():
             if row['course'] == deleted_course_code:
-                # Set the course field to "NULL"
+                # Set the course field to "No Course" for all matching rows
                 self.dataframe.at[index, 'course'] = "No Course"
                 self.dataframe.at[index, 'status'] = "No"
-                break
+        # Emit signal to update the dataframe in the main window
         self.communicate.updateDataframe.emit(self.dataframe)
 
 class courseAddWindow(QMainWindow):
@@ -507,7 +522,7 @@ class courseDeleteWindow(QMainWindow):
             self.course_dataframe = self.course_dataframe.reset_index(drop=True)
             # Emit signal and close window
             self.communicate.updateCourseDataframe.emit(self.course_dataframe)
-            self.communicate.deletedCourse.emit(course_to_delete)  # Emit the custom signal with the deleted course code
+            self.communicate.deletedCourse.emit(course_to_delete)
             self.close()
         else:
             # Cancel deletion if no
@@ -564,7 +579,6 @@ class courseEditWindow(QMainWindow):
         self.course_dataframe.loc[self.row_index, "course_code"] = course_code
         self.course_dataframe.loc[self.row_index, "course_description"] = course_description
 
-        print (old_course_code, new_course_code)
         # Update course_dataframe
         self.course_dataframe.loc[self.row_index, "course_code"] = new_course_code
         self.course_dataframe.loc[self.row_index, "course_description"] = course_description
